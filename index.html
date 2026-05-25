@@ -2,125 +2,86 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SN 风险核验 (本地App版)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>SN 核验 (离线版)</title>
+    <link rel="manifest" href="manifest.json">
     <script src="html5-qrcode.min.js" type="text/javascript"></script>
-    <script src="Risk-SN.js" type="text/javascript"></script>
     <style>
-        :root {
-            --primary-color: #007bff;
-            --success-color: #388e3c;
-            --danger-color: #d32f2f;
-            --warning-color: #f57c00;
-            --pending-color: #555;
-            --bg-color: #f7f9fc;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-            margin: 0; padding: 20px;
-            display: flex; flex-direction: column; align-items: center;
-            background-color: var(--bg-color);
-        }
-        h2 { margin-bottom: 20px; text-align: center; color: #333; }
-        .controls { display: flex; gap: 10px; margin-bottom: 20px; width: 100%; max-width: 500px; }
-        .btn {
-            flex: 1; padding: 14px; border: none; border-radius: 8px;
-            font-size: 16px; cursor: pointer; font-weight: bold; text-align: center;
-        }
-        .btn-primary { background-color: var(--primary-color); color: white; }
-        .btn-secondary { background-color: #6c757d; color: white; }
-        
-        #interactive-area { width: 100%; max-width: 500px; display: flex; flex-direction: column; align-items: center; }
-        #reader-container, #photo-container { width: 100%; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); background: #fff; display: none; }
+        :root { --primary: #007bff; --success: #388e3c; --danger: #d32f2f; --warning: #f57c00; --bg: #f7f9fc; }
+        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; background: var(--bg); }
+        h2 { color: #333; margin-bottom: 15px; }
+        .controls { display: flex; gap: 10px; margin-bottom: 15px; width: 100%; max-width: 500px; }
+        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; }
+        .btn-primary { background: var(--primary); }
+        .btn-secondary { background: #6c757d; }
+        #reader-container { width: 100%; max-width: 500px; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         #reader { width: 100%; }
-        #photo-container { padding: 10px; box-sizing: border-box; text-align: center; }
-        #photo-preview { max-width: 100%; max-height: 250px; margin-bottom: 10px; border-radius: 4px; }
-        #camera-input { display: none; }
-
-        #result-box {
-            margin-top: 20px; padding: 20px; width: 100%; max-width: 460px; border-radius: 8px;
-            text-align: center; font-size: 26px; font-weight: bold; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .status-risk { color: var(--danger-color); background-color: #ffebee !important; }
-        .status-safe { color: var(--success-color); background-color: #e8f5e9 !important; }
-        .status-invalid { color: var(--warning-color); background-color: #fff3e0 !important; }
-        .status-pending { color: var(--pending-color); }
-        .status-loading { color: #888; font-style: italic; font-size: 16px; }
+        #result-box { margin-top: 15px; padding: 20px; width: 100%; max-width: 460px; border-radius: 8px; text-align: center; font-size: 28px; font-weight: bold; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .status-risk { color: var(--danger); background-color: #ffebee !important; }
+        .status-safe { color: var(--success); background-color: #e8f5e9 !important; }
+        .status-invalid { color: var(--warning); background-color: #fff3e0 !important; }
         #scanned-sn { display: block; font-size: 16px; color: #666; margin-top: 10px; font-weight: normal; word-break: break-all; }
-        #error-msg { display: block; font-size: 14px; color: var(--danger-color); margin-top: 10px; font-weight: normal; }
+        #offline-badge { display: none; background: #4caf50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; vertical-align: middle; margin-left: 10px;}
     </style>
 </head>
 <body>
 
-    <h2>SN 风险核验系统 (本地版)</h2>
+    <h2>SN 核验系统 <span id="offline-badge">已离线就绪</span></h2>
     
     <div class="controls">
-        <button class="btn btn-primary" onclick="startLiveScanner()">实时极速扫码</button>
-        <button class="btn btn-secondary" onclick="triggerCamera()">拍照识别</button>
+        <button class="btn btn-primary" onclick="startScanner()">开始极速扫码</button>
     </div>
 
-    <div id="interactive-area">
-        <div id="reader-container"><div id="reader"></div></div>
-        <div id="photo-container">
-            <img id="photo-preview" src="" alt="照片预览" />
-            <div class="status-loading">正在提取本地条码...</div>
-        </div>
+    <div id="reader-container">
+        <div id="reader"></div>
     </div>
 
-    <input type="file" id="camera-input" accept="image/*" capture="environment" />
-    <canvas id="canvas" style="display:none;"></canvas>
-
-    <div id="result-box" class="status-pending">
-        <span id="result-text">等待扫码或拍照...</span>
+    <div id="result-box">
+        <span id="result-text">等待扫码...</span>
         <span id="scanned-sn"></span>
-        <span id="error-msg"></span>
     </div>
 
     <script>
+        // 注册 Service Worker 实现离线访问
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(() => {
+                    document.getElementById('offline-badge').style.display = 'inline-block';
+                    console.log('离线模式已激活');
+                });
+            });
+        }
+
         const DOM = {
-            readerContainer: document.getElementById('reader-container'),
-            photoContainer: document.getElementById('photo-container'),
-            photoPreview: document.getElementById('photo-preview'),
-            cameraInput: document.getElementById('camera-input'),
             resultBox: document.getElementById('result-box'),
             resultText: document.getElementById('result-text'),
-            scannedSn: document.getElementById('scanned-sn'),
-            errorMsg: document.getElementById('error-msg'),
-            canvas: document.getElementById('canvas'),
-            ctx: document.getElementById('canvas').getContext('2d')
+            scannedSn: document.getElementById('scanned-sn')
         };
 
         let riskSNSet = new Set();
         let html5QrcodeScanner = null;
-        
-        const scannerConfig = {
-            fps: 30,
-            qrbox: { width: 350, height: 100 },
-            aspectRatio: 1.0,
-            formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39 ],
-            experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-        };
 
-        // 1. 从本地 JS 变量解析数据（彻底免跨域报错）
-        function loadLocalData() {
-            if (window.riskCsvData) {
-                const lines = window.riskCsvData.split(/\r?\n/);
-                lines.forEach(line => {
+        // 加载同目录下的 CSV 数据
+        async function loadCSV() {
+            try {
+                const response = await fetch('Risk-SN.csv');
+                const csvText = await response.text();
+                csvText.split(/\r?\n/).forEach(line => {
                     const cleanSN = line.trim().split(',')[0];
                     if (cleanSN) riskSNSet.add(cleanSN);
                 });
-                console.log(`成功从本地加载了 ${riskSNSet.size} 个风险 SN。`);
-            } else {
-                alert("未读取到 Risk-SN.js 中的数据，请检查该文件！");
+                console.log(`载入 ${riskSNSet.size} 个风险条码`);
+            } catch (error) {
+                alert("加载 CSV 失败，请确保文件存在。");
             }
         }
 
         const isValidSN = (text) => /^[A-Za-z0-9]{23,25}$/.test(text);
 
+        // 极速匹配逻辑
         function processSN(rawText) {
             const sn = rawText.trim();
-            DOM.scannedSn.innerText = `核验单号: ${sn}`;
-            DOM.errorMsg.innerText = '';
+            DOM.scannedSn.innerText = `单号: ${sn}`;
 
             if (!isValidSN(sn)) {
                 DOM.resultBox.className = 'status-invalid';
@@ -128,94 +89,33 @@
             } else if (riskSNSet.has(sn)) {
                 DOM.resultBox.className = 'status-risk';
                 DOM.resultText.innerText = "风险";
-                if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+                if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
             } else {
                 DOM.resultBox.className = 'status-safe';
                 DOM.resultText.innerText = "安全";
             }
         }
 
-        // --- 实时扫码 ---
-        function startLiveScanner() {
-            DOM.photoContainer.style.display = 'none';
-            DOM.readerContainer.style.display = 'block';
-            resetResult();
-            if (html5QrcodeScanner) {
-                html5QrcodeScanner.clear().then(() => { initScanner(); });
-            } else {
-                initScanner();
+        function startScanner() {
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5QrcodeScanner(
+                    "reader", 
+                    { 
+                        fps: 30, 
+                        qrbox: { width: 350, height: 100 },
+                        formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39 ],
+                        experimentalFeatures: { useBarCodeDetectorIfSupported: true } // 开启原生极速引擎
+                    }, 
+                    false
+                );
+                html5QrcodeScanner.render(processSN);
             }
         }
 
-        function initScanner() {
-            html5QrcodeScanner = new Html5QrcodeScanner("reader", scannerConfig, false);
-            html5QrcodeScanner.render(processSN);
-        }
-
-        // --- 拍照识别 (在打包成 APK 后，此模式兼容性最强、最稳定) ---
-        function triggerCamera() { DOM.cameraInput.click(); }
-
-        DOM.cameraInput.addEventListener('change', function(e) {
-            if (e.target.files && e.target.files.length > 0) { handlePhoto(e.target.files[0]); }
-        });
-
-        async function handlePhoto(file) {
-            DOM.readerContainer.style.display = 'none';
-            if (html5QrcodeScanner) html5QrcodeScanner.clear();
-            DOM.photoContainer.style.display = 'block';
-            resetResult('loading');
-
-            DOM.photoPreview.src = URL.createObjectURL(file);
-            const resizedImage = await resizeImage(file, 1000, 1000);
-
-            // 使用本地实例解析
-            const html5QrCodeInstance = new Html5Qrcode("reader");
-            html5QrCodeInstance.scanFile(resizedImage, false)
-                .then(decodedText => {
-                    resetResult();
-                    processSN(decodedText);
-                })
-                .catch(err => {
-                    resetResult();
-                    DOM.resultBox.className = 'status-invalid';
-                    DOM.resultText.innerText = "识别失败";
-                    DOM.errorMsg.innerText = "未在照片中检测到条码，请贴近、对焦清晰后重新拍照。";
-                });
-        }
-
-        function resizeImage(file, maxWidth, maxHeight) {
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.src = e.target.result;
-                    img.onload = function() {
-                        let width = img.width, height = img.height;
-                        if (width > height) {
-                            if (width > maxWidth) { height *= maxWidth / width; width = maxWidth; }
-                        } else {
-                            if (height > maxHeight) { width *= maxHeight / height; height = maxHeight; }
-                        }
-                        DOM.canvas.width = width; DOM.canvas.height = height;
-                        DOM.ctx.drawImage(img, 0, 0, width, height);
-                        DOM.canvas.toBlob(resolve, 'image/jpeg', 0.8);
-                    };
-                };
-            });
-        }
-
-        function resetResult(status = 'pending') {
-            DOM.errorMsg.innerText = ''; DOM.scannedSn.innerText = '';
-            DOM.photoContainer.querySelector('.status-loading').style.display = (status === 'loading' ? 'block' : 'none');
-            if (status === 'loading') {
-                DOM.resultBox.className = 'status-loading'; DOM.resultText.innerText = "处理中...";
-            } else {
-                DOM.resultBox.className = 'status-pending'; DOM.resultText.innerText = "等待扫码或拍照...";
-            }
-        }
-
-        window.onload = () => { loadLocalData(); startLiveScanner(); };
+        window.onload = async () => {
+            await loadCSV();
+            startScanner();
+        };
     </script>
 </body>
 </html>
