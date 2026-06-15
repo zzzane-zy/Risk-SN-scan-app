@@ -1,121 +1,116 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>SN 核验 (离线版)</title>
-    <link rel="manifest" href="manifest.json">
-    <script src="html5-qrcode.min.js" type="text/javascript"></script>
-    <style>
-        :root { --primary: #007bff; --success: #388e3c; --danger: #d32f2f; --warning: #f57c00; --bg: #f7f9fc; }
-        body { font-family: -apple-system, sans-serif; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; background: var(--bg); }
-        h2 { color: #333; margin-bottom: 15px; }
-        .controls { display: flex; gap: 10px; margin-bottom: 15px; width: 100%; max-width: 500px; }
-        .btn { flex: 1; padding: 12px; border: none; border-radius: 8px; font-size: 16px; font-weight: bold; color: #fff; cursor: pointer; }
-        .btn-primary { background: var(--primary); }
-        .btn-secondary { background: #6c757d; }
-        #reader-container { width: 100%; max-width: 500px; border-radius: 8px; overflow: hidden; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        #reader { width: 100%; }
-        #result-box { margin-top: 15px; padding: 20px; width: 100%; max-width: 460px; border-radius: 8px; text-align: center; font-size: 28px; font-weight: bold; background: #fff; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        .status-risk { color: var(--danger); background-color: #ffebee !important; }
-        .status-safe { color: var(--success); background-color: #e8f5e9 !important; }
-        .status-invalid { color: var(--warning); background-color: #fff3e0 !important; }
-        #scanned-sn { display: block; font-size: 16px; color: #666; margin-top: 10px; font-weight: normal; word-break: break-all; }
-        #offline-badge { display: none; background: #4caf50; color: white; padding: 2px 8px; border-radius: 12px; font-size: 12px; vertical-align: middle; margin-left: 10px;}
-    </style>
-</head>
-<body>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#17231f">
+    <title>风险货物扫码核验</title>
+    <link rel="manifest" href="./manifest.webmanifest">
+    <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">Risk SN Check</p>
+          <h1>风险货物扫码核验</h1>
+        </div>
+        <button class="ghost-action" id="cloudButton" type="button">云端配置</button>
+      </header>
 
-    <h2>SN 核验系统 <span id="offline-badge">已离线就绪</span></h2>
-    
-    <div class="controls">
-        <button class="btn btn-primary" onclick="startScanner()">开始极速扫码</button>
+      <section class="status-strip" aria-live="polite">
+        <div class="status-pill">
+          <span class="status-dot" id="dataDot"></span>
+          <span id="dataStatus">加载风险清单</span>
+        </div>
+        <div class="status-pill cloud-pill" id="cloudStatus">内置云端</div>
+      </section>
+
+      <section class="scan-stage" id="scanStage" aria-label="相机扫码">
+        <div class="camera-frame">
+          <video id="video" playsinline muted></video>
+          <div class="scan-mask" aria-hidden="true">
+            <span></span>
+          </div>
+          <div class="camera-empty" id="cameraEmpty">
+            <strong>相机未开启</strong>
+            <small id="cameraHint">等待风险清单</small>
+          </div>
+        </div>
+
+        <div class="controls">
+          <button class="primary-action" id="startButton" type="button" disabled>开始扫码</button>
+          <button class="secondary-action" id="stopButton" type="button" disabled>停止</button>
+          <button class="secondary-action" id="cameraButton" type="button">切换相机</button>
+          <label class="secondary-action file-action">
+            图片识别
+            <input id="imageInput" type="file" accept="image/*" capture="environment">
+          </label>
+        </div>
+      </section>
+
+      <section class="history-panel" aria-label="最近三次核验">
+        <div class="section-title">
+          <h2>最近三次核验</h2>
+          <button class="text-action" id="clearHistoryButton" type="button">清空</button>
+        </div>
+        <ol id="historyList"></ol>
+      </section>
+
+      <section class="manual-panel" aria-label="输入核验">
+        <form id="manualForm">
+          <label for="manualInput">输入/粘贴 SN / PDA</label>
+          <div class="manual-row">
+            <input id="manualInput" autocomplete="off" autocapitalize="characters" inputmode="text" spellcheck="false" placeholder="P010100...">
+            <button class="primary-action" type="submit">核验</button>
+          </div>
+        </form>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" id="resultModal" role="dialog" aria-modal="true" aria-labelledby="resultModalTitle" hidden>
+      <div class="modal-card result-dialog">
+        <h2 id="resultModalTitle">核验结果</h2>
+        <code id="resultModalCode">--</code>
+        <p id="resultModalMessage"></p>
+        <button class="primary-action" id="resultModalOk" type="button">确定</button>
+      </div>
     </div>
 
-    <div id="reader-container">
-        <div id="reader"></div>
+    <div class="modal-backdrop" id="configModal" role="dialog" aria-modal="true" aria-labelledby="configTitle" hidden>
+      <form class="modal-card config-dialog" id="configForm">
+        <div class="modal-title-row">
+          <h2 id="configTitle">云端配置</h2>
+          <button class="text-action" id="closeConfigButton" type="button">关闭</button>
+        </div>
+
+        <label for="operatorInput">操作人</label>
+        <input id="operatorInput" autocomplete="off" placeholder="可选">
+
+        <label for="supabaseUrlInput">Supabase URL</label>
+        <input id="supabaseUrlInput" autocomplete="off" inputmode="url" placeholder="留空使用内置配置">
+
+        <label for="supabaseKeyInput">Supabase anon/public key</label>
+        <input id="supabaseKeyInput" autocomplete="off" placeholder="留空使用内置配置">
+
+        <div class="device-row">
+          <span>设备名称</span>
+          <strong id="deviceNameText">--</strong>
+        </div>
+
+        <label class="check-row">
+          <input id="testDeviceInput" type="checkbox">
+          <span>注册为 Test 设备</span>
+        </label>
+
+        <div class="config-actions">
+          <button class="secondary-action" id="resetConfigButton" type="button">恢复内置</button>
+          <button class="primary-action" type="submit">保存</button>
+        </div>
+      </form>
     </div>
 
-    <div id="result-box">
-        <span id="result-text">等待扫码...</span>
-        <span id="scanned-sn"></span>
-    </div>
-
-    <script>
-        // 注册 Service Worker 实现离线访问
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('sw.js').then(() => {
-                    document.getElementById('offline-badge').style.display = 'inline-block';
-                    console.log('离线模式已激活');
-                });
-            });
-        }
-
-        const DOM = {
-            resultBox: document.getElementById('result-box'),
-            resultText: document.getElementById('result-text'),
-            scannedSn: document.getElementById('scanned-sn')
-        };
-
-        let riskSNSet = new Set();
-        let html5QrcodeScanner = null;
-
-        // 加载同目录下的 CSV 数据
-        async function loadCSV() {
-            try {
-                const response = await fetch('Risk-SN.csv');
-                const csvText = await response.text();
-                csvText.split(/\r?\n/).forEach(line => {
-                    const cleanSN = line.trim().split(',')[0];
-                    if (cleanSN) riskSNSet.add(cleanSN);
-                });
-                console.log(`载入 ${riskSNSet.size} 个风险条码`);
-            } catch (error) {
-                alert("加载 CSV 失败，请确保文件存在。");
-            }
-        }
-
-        const isValidSN = (text) => /^[A-Za-z0-9]{23,25}$/.test(text);
-
-        // 极速匹配逻辑
-        function processSN(rawText) {
-            const sn = rawText.trim();
-            DOM.scannedSn.innerText = `单号: ${sn}`;
-
-            if (!isValidSN(sn)) {
-                DOM.resultBox.className = 'status-invalid';
-                DOM.resultText.innerText = "非SN";
-            } else if (riskSNSet.has(sn)) {
-                DOM.resultBox.className = 'status-risk';
-                DOM.resultText.innerText = "风险";
-                if (navigator.vibrate) navigator.vibrate([300, 100, 300]);
-            } else {
-                DOM.resultBox.className = 'status-safe';
-                DOM.resultText.innerText = "安全";
-            }
-        }
-
-        function startScanner() {
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5QrcodeScanner(
-                    "reader", 
-                    { 
-                        fps: 30, 
-                        qrbox: { width: 350, height: 100 },
-                        formatsToSupport: [ Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39 ],
-                        experimentalFeatures: { useBarCodeDetectorIfSupported: true } // 开启原生极速引擎
-                    }, 
-                    false
-                );
-                html5QrcodeScanner.render(processSN);
-            }
-        }
-
-        window.onload = async () => {
-            await loadCSV();
-            startScanner();
-        };
-    </script>
-</body>
+    <script type="module" src="./src/app.js?v=7"></script>
+  </body>
 </html>
